@@ -62,7 +62,7 @@ class DirDataset(data.Dataset):
 
 if __name__ == '__main__':
     base = '/DB/CC_WEB_VIDEO/frame_1_per_sec/frames'
-    db=CC_WEB_VIDEO()
+    db = CC_WEB_VIDEO()
     db.get_VideoList()
     videos = os.listdir(base)
     videos.sort(key=lambda x: int(x))
@@ -70,4 +70,3 @@ if __name__ == '__main__':
     for vid in videos:
         dt = DirDataset(os.path.join(base, vid))
         print(dt)
-

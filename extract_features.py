@@ -7,7 +7,8 @@ import os
 
 from dataset.ListDataset import DirDataset
 
-base = '/DB/CC_WEB_VIDEO/frame_1_per_sec/frames'
+#base = '/DB/CC_WEB_VIDEO/frame_1_per_sec/frames'
+base = '/DB/VCDB/frame_1_per_sec/frames'
 videos = os.listdir(base)
 
 videos.sort(key=int)
@@ -20,22 +21,24 @@ video_trn = trn.Compose([
 ])
 
 model = resnet50(pretrained=True)
-model = torch.nn.Sequential(*list(model.children())[:-1])  # 204 - dimension
+model = torch.nn.Sequential(*list(model.children())[:-1])  # 2048 - dimension
 model.cuda()
 model = torch.nn.DataParallel(model)
 summary(model, (3, 224, 224))
 model.eval()
-save = "/DB/CC_WEB_VIDEO/frame_1_per_sec/resnet50"
+#save = "/DB/CC_WEB_VIDEO/frame_1_per_sec/resnet50"
+save = "/DB/VCDB/frame_1_per_sec/resnet50"
 with torch.no_grad():
     vfeatures=[]
+
     for vid in videos:
-        print(vid)
         dt = DirDataset(os.path.join(base, vid), video_trn)
         dl = DataLoader(dt, batch_size=256, num_workers=0)
         frame_feature = []
         for i, (im, path) in enumerate(dl):
             out = model(im.cuda())
             frame_feature.append(out.squeeze(-1).squeeze(-1))
+            print('extract vid: {} shape: {}'.format(vid,out.shape))
         frame_feature = torch.cat(frame_feature)
         video_feature = torch.mean(frame_feature, dim=0, keepdim=True)
         # save frame feature

@@ -38,8 +38,6 @@ with open(p) as file:
         elif status==-1:
             ff.write(os.path.join(dir, filename))
         print(vid, os.path.join(dir, name))
-        # cmd = 'wget -q --show-progress -P {} http://vireo.cs.cityu.edu.hk/webvideo/videos/{}/{}'.format(dir, qid, name)
-        # os.system(cmd)
 
 of.close()
 ff.close()
