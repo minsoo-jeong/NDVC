@@ -108,7 +108,24 @@ class VCDB:
         l = []
         for v in vid:
             l.append([i['index'] for i in self.core_vlist if i['VideoID'] in self.gt_idx_per_core[v]])
+        return l
 
+    def time2sec(self, t):
+        h, m, s = t.split(':')
+        s = int(s) + 60 * int(m) + 3600 * int(h)
+        return s
+
+    def get_GT_time(self, vid=[]):
+        vid = self.__validate_vid(vid)
+        l = []
+        for v in vid:
+            for i in self.gt:
+                if i['A'] == v:
+                    l.append([i['A'], self.time2sec(i['A_start']), self.time2sec(i['A_end']),
+                              i['B'], self.time2sec(i['B_start']), self.time2sec(i['B_end'])])
+                elif i['B'] == v:
+                    l.append([i['B'], self.time2sec(i['B_start']), self.time2sec(i['B_end']),
+                              i['A'], self.time2sec(i['A_start']), self.time2sec(i['A_end'])])
         return l
 
 
@@ -116,7 +133,10 @@ if __name__ == '__main__':
     db = VCDB()
     # print(db.core_vlist)
     # print(db.gt)
-    l=db.get_GT()
+    l = db.get_GT()
     print(l)
     print(len(l))
-    print([len(i) for i in l if len(i)==0])
+    print([len(i) for i in l if len(i) == 0])
+
+    l = db.get_GT_time()
+    print(l)

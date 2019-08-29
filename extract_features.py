@@ -5,10 +5,11 @@ from torchsummary import summary
 import torch
 import os
 
+from models.nets import Resnet50_RMAC
 from dataset.ListDataset import DirDataset
 
-#base = '/DB/CC_WEB_VIDEO/frame_1_per_sec/frames'
-base = '/DB/VCDB/frame_1_per_sec/frames'
+base = '/DB/CC_WEB_VIDEO/frame_1_per_sec/frames'
+#base = '/DB/VCDB/frame_1_per_sec/frames'
 videos = os.listdir(base)
 
 videos.sort(key=int)
@@ -20,14 +21,15 @@ video_trn = trn.Compose([
     normalize
 ])
 
-model = resnet50(pretrained=True)
-model = torch.nn.Sequential(*list(model.children())[:-1])  # 2048 - dimension
+#model = resnet50(pretrained=True)
+#model = torch.nn.Sequential(*list(model.children())[:-1])  # 2048 - dimension
+model=Resnet50_RMAC()
 model.cuda()
 model = torch.nn.DataParallel(model)
 summary(model, (3, 224, 224))
 model.eval()
-#save = "/DB/CC_WEB_VIDEO/frame_1_per_sec/resnet50"
-save = "/DB/VCDB/frame_1_per_sec/resnet50"
+save = "/DB/CC_WEB_VIDEO/frame_1_per_sec/resnet50-rmac"
+#save = "/DB/VCDB/frame_1_per_sec/resnet50-rmac"
 with torch.no_grad():
     vfeatures=[]
 
@@ -38,7 +40,7 @@ with torch.no_grad():
         for i, (im, path) in enumerate(dl):
             out = model(im.cuda())
             frame_feature.append(out.squeeze(-1).squeeze(-1))
-            print('extract vid: {} shape: {}'.format(vid,out.shape))
+            print('extract vid: {}/ shape: {}'.format(vid,out.shape))
         frame_feature = torch.cat(frame_feature)
         video_feature = torch.mean(frame_feature, dim=0, keepdim=True)
         # save frame feature
