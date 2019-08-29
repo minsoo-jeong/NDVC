@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="26070156-2d1e-403a-a717-3c93a7e0f6da" name="NDVC" url="http://mltigers.sogang.ac.kr">
+        <fileTransfer host="mltigers.sogang.ac.kr" port="8022" accessType="SFTP">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" />
+          </advancedOptions>
+          <option name="port" value="8022" />
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
