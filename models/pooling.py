@@ -80,3 +80,7 @@ class RMAC(nn.Module):
                     v += vt
 
         return v
+
+
+if __name__=="__main__":
+    print('RMAC')
