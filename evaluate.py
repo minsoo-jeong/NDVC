@@ -13,7 +13,7 @@ from queue import Queue
 
 def evaluate_cc_web():
     db = CC_WEB_VIDEO()
-    gt = db.get_GT(status='QESVML')
+    gt = db.get_reference_video_index(status='QESVML')
 
     query = db.get_Query()
     query_idx = [q['index'] for q in query]
@@ -30,11 +30,11 @@ def evaluate_cc_web():
 
 def evaluate_vc():
     db = VCDB()
-    gt = db.get_GT()
+    gt = db.get_reference_video_index()
 
     # vfeatures = torch.load('/DB/VCDB/frame_1_per_sec/resnet50/v-feature.pt')
-    vfeatures = torch.load('/DB/VCDB/frame_1_per_sec/resnet50/v-feature.pt')
-    vfeatures_sub = torch.load('/DB/CC_WEB_VIDEO/frame_1_per_sec/resnet50/v-feature.pt')
+    vfeatures = torch.load('/DB/VCDB/frame_1_per_sec/resnet50-rmac/v-feature.pt')
+    vfeatures_sub = torch.load('/DB/CC_WEB_VIDEO/frame_1_per_sec/resnet50-rmac/v-feature.pt')
     ff = torch.cat([vfeatures, vfeatures_sub])
 
     score, idx, _ = cosine_similarity(vfeatures, vfeatures, cuda=False)
@@ -54,9 +54,7 @@ def index_to_file(start, idx):
 
 
 if __name__ == '__main__':
-    # evaluate_vc()
-    # exit()
-    p = '/DB/VCDB/frame_1_per_sec/resnet50-rmac/f-feature'
+    p = '/DB/VCDB/frame_1_per_sec/resnet50-rmac/f-features'
     l = os.listdir(p)
     l.sort(key=lambda x: int(os.path.splitext(x)[0]))
     ff = []
@@ -64,9 +62,19 @@ if __name__ == '__main__':
     start = [0]
     videoid = []
     du = []
-    for i in l:
+
+    st = [0]
+    end = []
+
+    # /DB/VCDB/{frame_per_sec}/{resnet50-rmac}/f-features/{vid}.pt
+    for o, i in enumerate(l):
         feature = torch.load(os.path.join(p, i))
         ff.append(feature)
+        n = feature.shape[0]
+
+        end.append(st[-1] + n - 1)
+        st.append(st[-1] + n)
+
         videoid.append(os.path.splitext(i)[0])
         shapes.append(feature.shape[0])
         du.append([start[-1], start[-1] + feature.shape[0] - 1])
@@ -76,18 +84,27 @@ if __name__ == '__main__':
 
     max_idx = np.argmax(shapes)
     print(max_idx)
+    print(st)
+    print(end)
 
     ans = 0
     prec = 0
     rec = 0
     db = VCDB()
 
-    SCORE_THR = 0.95
+    SCORE_THR = 0.90
     TEMP_WND = 1
+    MIN_PATH = 3
 
     for i, _ in enumerate(start[:-1]):
         q = ff[start[i]:start[i + 1], :]
         score, idx, cos = cosine_similarity(q, ff, cuda=False, numpy=True)
+        paths = temporal_network(score, idx, SCORE_THR=SCORE_THR, TEMP_WND=TEMP_WND, MIN_PATH=MIN_PATH)
+        print(len(paths), paths)
+        paths = [[p[0], (p[1][0], p[-1][0]), (p[1][1], p[-1][1])] for p in paths]
+        print(len(paths), paths)
+
+        '''
         paths = []  # path: [weight,(q_seq,idx),(q_seq,idx)....]
         act_path = Queue()
         for q_seq in range(q.shape[0]):
@@ -117,31 +134,32 @@ if __name__ == '__main__':
             for rank, t_idx in enumerate(top_idx):
                 if not rank in append_idx:
                     act_path.put([score[q_seq][rank], (q_seq, t_idx)])
-
+            print(act_path.queue, paths)
+        
         paths += list(act_path.queue)
-        paths = list(filter(lambda x: len(x) >= 6, paths))
+        paths = list(filter(lambda x: len(x) >= 3, paths))
         paths.sort(key=lambda x: x[0], reverse=True)
+        '''
 
-        # print(len(paths), paths)
-        det = set()
-        for p in paths:
-            for d in p[1:]:
-                det.add(d)
-        det = list(det)
-        det.sort(key=lambda x: x[0])
-        if i == 1:
-            for p in paths:
-                print((p[1][0], p[-1][0]), (p[1][1], p[-1][1]), p[0])
-            print(det)
-            print(paths)
-            exit()
-        det = set(det)
-        # print([(p[0], p[1], p[-1]) for p in paths])
-        gt = db.get_GT_time(vid=i + 1)
+        gt = db.get_GT(vid=i + 1)
+        q_info=db.get_VideoList(vid=i+1)[0]
+        print(gt)
+        print(q_info)
+        print(q_info['index'],q_info)
+        q_frame_idx=[st[q_info['index']],end[q_info['index']]]
+        for g in gt:
+            info=db.get_VideoList(g['ref_vid'])[0]
+            ref_frame_idx = [st[info['index']], end[info['index']]]
+            print(ref_frame_idx,g,info['Duration'])
+
+        gt = [[(g['start'], g['end']), (g['ref_start'], g['ref_end'])] for g in gt]
+        print(len(gt),gt)
+
+        exit()
         gt_det = set()
         for g in gt:
-            qid = g[0]
-            rid = g[3]
+            qid = g['vid']
+            rid = g['ref_vid']
             d = du[rid - 1]
             if (g[2] - g[1] >= 1):
                 for t in range(g[2] - g[1]):

@@ -6,6 +6,7 @@ from datetime import datetime
 from dataset.cc_web_video import CC_WEB_VIDEO
 from sklearn.metrics import precision_recall_curve, average_precision_score
 import matplotlib.pyplot as plt
+from queue import Queue
 
 
 def format_bytes(size):
@@ -32,7 +33,7 @@ def cosine_similarity(query, features, cuda=True, numpy=True):
 
     post = lambda x: x.cpu().numpy() if numpy else x.cpu()
 
-    score, idx, cos = map(post,[score,idx,cos])
+    score, idx, cos = map(post, [score, idx, cos])
 
     return score, idx, cos
 
@@ -102,6 +103,56 @@ def draw_pr_curve(pr):
     plt.savefig('show/pr.jpg')
 
 
+"""
+temporal_network
+# Parameters
+   score,idx : (q,db) array sorted by cosine similarity score per each query segment
+   SCORE_THR : Threshold about score
+   TEMP_WND : Threshold about timestamp 
+        - if segments path is like [ 1.54, (Q1,DB3),(Q2,DB4) ...]
+         Q2-Q1 < TEMP_WND and  DB4-DB3 < TEMP_WND
+# Return    
+    path : paths of TN ... [score,(Q,DB),(Q,DB)......]
+
+"""
+
+
+def temporal_network(score, idx, SCORE_THR=0.9, TEMP_WND=1, MIN_PATH=3):
+    path = []
+    active_path = Queue()
+    n_qseg = score.shape[0]
+    for q_seg in range(n_qseg):
+        top_score = score[q_seg][score[q_seg] > SCORE_THR]
+        top_idx = idx[q_seg, :len(top_score)]
+        active_rank = []
+        # connect active path
+        for pi in range(active_path.qsize()):
+            p = active_path.get()
+            added = False
+            prev_q = p[-1][0]
+            prev_db = p[-1][1]
+            if q_seg <= prev_q + TEMP_WND:
+                for rank, ti in enumerate(top_idx):
+                    if ti > prev_db and ti <= prev_db + TEMP_WND:
+                        np = p.copy()
+                        np.append((q_seg, ti))
+                        np[0] += top_score[rank]
+                        active_path.put(np)
+                        active_rank.append(rank)
+                        added = True
+                if not added:
+                    active_path.put(p)
+            else:
+                path.append(p)
+        [active_path.put([top_score[rank], (q_seg, ti)]) for rank, ti in enumerate(top_idx) if not rank in active_rank]
+        #print(active_path.queue,path)
+
+    path += list(active_path.queue)
+    path = list(filter(lambda x: len(x) >= MIN_PATH, path))
+    path.sort(key=lambda x: x[0], reverse=True)
+    return path
+
+
 if __name__ == '__main__':
     db = CC_WEB_VIDEO()
     dbl = db.get_VideoList(fmt=['videoid', 'queryid', 'status'])
@@ -136,5 +187,5 @@ if __name__ == '__main__':
 
     # print(dbnp[idx[:, :100]])
     print(idx[:, :100])
-    gt = db.get_GT(status='QESVML')
+    gt = db.get_reference_video_index(status='QESVML')
     evaluate_mAP(idx, gt)

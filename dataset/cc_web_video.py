@@ -126,7 +126,7 @@ class CC_WEB_VIDEO:
     def get_Query(self):
         return list(filter(lambda x: x['status'] == 'Q', self.filelist))
 
-    def get_GT(self, qid=[], status=''):
+    def get_reference_video_index(self, qid=[], status=''):
         qid = self.__validate_qid(qid)
 
         if status.find('-1') != -1:
@@ -150,5 +150,5 @@ if __name__ == '__main__':
     print(db.blacklist)
     print(db.get_Query())
     print(db.filelist[:5])
-    l = db.get_GT(qid=[1, 2], status='-1')
+    l = db.get_reference_video_index(qid=[1, 2], status='-1')
     print(len(l), l)
