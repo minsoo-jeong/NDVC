@@ -11,10 +11,10 @@ from dataset.ListDataset import DirDataset
 base =/DB/{db_name}/{segments}/frames/
 save =/DB/{db_name}/{segments}/{model_name}/{f-features or v-features}/{VideoID}
 """
-# base = '/DB/CC_WEB_VIDEO/frame_1_per_sec/frames'
-#save = "/DB/CC_WEB_VIDEO/all_frames/resnet50-rmac"
-base = '/DB/VCDB/all_frames/frames'
-save = "/DB/VCDB/all_frames/resnet50"
+base = '/DB/CC_WEB_VIDEO/frame_1_per_sec/frames'
+save = "/DB/CC_WEB_VIDEO/frame_1_per_sec/resnet50-rmac"
+#base = '/DB/VCDB/all_frames/frames'
+#save = "/DB/VCDB/all_frames/resnet50"
 
 if not os.path.exists(base):
     print("base '{}' is not exist.".format(base))
@@ -25,7 +25,6 @@ if not os.path.exists(save):
 
 videos = os.listdir(base)
 videos.sort(key=int)
-videos=videos[200:]
 normalize = trn.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 video_trn = trn.Compose([
     trn.Resize(224),
@@ -33,9 +32,9 @@ video_trn = trn.Compose([
     normalize
 ])
 
-model = resnet50(pretrained=True)
-model = torch.nn.Sequential(*list(model.children())[:-1])  # 2048 - dimension
-#model = Resnet50_RMAC()
+#model = resnet50(pretrained=True)
+#model = torch.nn.Sequential(*list(model.children())[:-1])  # 2048 - dimension
+model = Resnet50_RMAC()
 model.cuda()
 model = torch.nn.DataParallel(model)
 summary(model, (3, 224, 224))
@@ -43,7 +42,6 @@ model.eval()
 
 with torch.no_grad():
     vfeatures = []
-
     for idx, vid in enumerate(videos):
         dt = DirDataset(os.path.join(base, vid), video_trn)
         dl = DataLoader(dt, batch_size=64, num_workers=0)

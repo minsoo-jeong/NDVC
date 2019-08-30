@@ -117,12 +117,14 @@ temporal_network
 """
 
 
-def temporal_network(score, idx, SCORE_THR=0.9, TEMP_WND=1, MIN_PATH=3):
+def temporal_network(score, idx, TOP_K=20, SCORE_THR=0.9, TEMP_WND=1, MIN_PATH=3):
     path = []
     active_path = Queue()
     n_qseg = score.shape[0]
     for q_seg in range(n_qseg):
         top_score = score[q_seg][score[q_seg] > SCORE_THR]
+        if TOP_K!=0:
+            top_score=top_score[:TOP_K]
         top_idx = idx[q_seg, :len(top_score)]
         active_rank = []
         # connect active path
@@ -145,11 +147,23 @@ def temporal_network(score, idx, SCORE_THR=0.9, TEMP_WND=1, MIN_PATH=3):
             else:
                 path.append(p)
         [active_path.put([top_score[rank], (q_seg, ti)]) for rank, ti in enumerate(top_idx) if not rank in active_rank]
-        #print(active_path.queue,path)
+        # print(active_path.queue,path)
 
     path += list(active_path.queue)
-    path = list(filter(lambda x: len(x) >= MIN_PATH, path))
+    path = list(filter(lambda x: len(x) >= MIN_PATH + 1, path))
     path.sort(key=lambda x: x[0], reverse=True)
+
+    # involve
+    for n, p in enumerate(path):
+        query = (p[1][0], p[-1][0])
+        ref = (p[1][1], p[-1][1])
+        for m, pp in enumerate(path[:n]):
+            q = (pp[1][0], pp[-1][0])
+            r = (pp[1][1], pp[-1][1])
+            if q[0]<=query[0] and query[1]<=q[1] and r[0]<=ref[0] and ref[1]<=r[1]:
+                p[0]=-1
+                break
+    path = list(filter(lambda x: x[0]!=-1, path))
     return path
 
 
