@@ -33,10 +33,10 @@ def extract_CC_WEB():
     for l in db.get_VideoList():
         p = l['VideoPath']
         vid = l['VideoID']
-        #d = '/DB/CC_WEB_VIDEO/frame_1_per_sec/frames/{}'.format(vid)
-        #r, o, e = extract_1_frame_per_second(p, d)
-        d = '/DB/CC_WEB_VIDEO/all_frames/frames/{}'.format(vid)
-        r, o, e = extract_all_frames(p, d)
+        d = '/DB/CC_WEB_VIDEO/frame_1_per_sec/frames/{}'.format(vid)
+        r, o, e = extract_1_frame_per_second(p, d)
+        #d = '/DB/CC_WEB_VIDEO/all_frames/frames/{}'.format(vid)
+        #r, o, e = extract_all_frames(p, d)
         print(r, d, l)
 
 

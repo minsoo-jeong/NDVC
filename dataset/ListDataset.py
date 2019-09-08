@@ -17,14 +17,15 @@ class ListDataset(data.Dataset):
         self.transform = transform
 
     def __getitem__(self, index):
-        sample = self.loader(self.samples[index])
+        path = self.samples[index]
+        sample = self.loader(path)
         if self.transform is not None:
             sample = self.transform(sample)
 
-        return sample
+        return sample,path
 
     def __len__(self):
-        return len(self.sample)
+        return len(self.samples)
 
     def __repr__(self):
         return str(self.__len__())

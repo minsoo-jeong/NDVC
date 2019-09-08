@@ -6,7 +6,10 @@ from datetime import datetime
 from dataset.cc_web_video import CC_WEB_VIDEO
 from sklearn.metrics import precision_recall_curve, average_precision_score
 import matplotlib.pyplot as plt
+import cv2
 from queue import Queue
+import copy
+import sys
 
 
 def format_bytes(size):
@@ -18,6 +21,10 @@ def format_bytes(size):
         size /= power
         n += 1
     return size, power_labels[n] + 'bytes'
+
+
+def int_round(f):
+    return int(round(f))
 
 
 # multiple query
@@ -34,6 +41,35 @@ def cosine_similarity(query, features, cuda=True, numpy=True):
     post = lambda x: x.cpu().numpy() if numpy else x.cpu()
 
     score, idx, cos = map(post, [score, idx, cos])
+
+    return score, idx, cos
+
+
+def cosine_similarity_split(query, features, cuda=True, numpy=True):
+    toCPU = lambda x: x.cpu()
+    toNumpy = lambda x: x.numpy()
+    q_l = query.split(100, dim=0)
+    score_l = []
+    cos_l = []
+    idx_l = []
+    if cuda:
+        features = features.cuda()
+    for q in q_l:
+        if cuda: q = q.cuda()
+        q = F.normalize(q, 2, 1)
+        features = F.normalize(features, 2, 1)
+        cos = torch.mm(features, q.t()).t()
+        score, idx = torch.sort(cos, descending=True)
+        score, idx, cos = map(toCPU, [score, idx, cos])
+
+        cos_l.append(cos)
+        score_l.append(score)
+        idx_l.append(idx)
+
+    cos = torch.cat(cos_l, dim=0)
+    score = torch.cat(score_l, dim=0)
+    idx = torch.cat(idx_l, dim=0)
+    score, idx, cos = map(toNumpy, [score, idx, cos])
 
     return score, idx, cos
 
@@ -103,68 +139,61 @@ def draw_pr_curve(pr):
     plt.savefig('show/pr.jpg')
 
 
-"""
-temporal_network
-# Parameters
-   score,idx : (q,db) array sorted by cosine similarity score per each query segment
-   SCORE_THR : Threshold about score
-   TEMP_WND : Threshold about timestamp 
-        - if segments path is like [ 1.54, (Q1,DB3),(Q2,DB4) ...]
-         Q2-Q1 < TEMP_WND and  DB4-DB3 < TEMP_WND
-# Return    
-    path : paths of TN ... [score,(Q,DB),(Q,DB)......]
+def cos_to_cv(cos, delimiter_idx, SCORE_THR, MIN_PATH):
+    cos_im = (cos * 255).astype(np.uint8)
+    cos_im[cos_im < SCORE_THR * 255] = 0
+    lines = cv2.HoughLinesP(cos_im, 1, np.pi / 180, 1, MIN_PATH, 1)
+    cos_im = cv2.cvtColor(cos_im, cv2.COLOR_GRAY2BGR)
+    cos_im[:, delimiter_idx[:-1], 2] = 255
 
-"""
+    return cos_im
 
 
-def temporal_network(score, idx, TOP_K=20, SCORE_THR=0.9, TEMP_WND=1, MIN_PATH=3):
-    path = []
-    active_path = Queue()
-    n_qseg = score.shape[0]
-    for q_seg in range(n_qseg):
-        top_score = score[q_seg][score[q_seg] > SCORE_THR]
-        if TOP_K!=0:
-            top_score=top_score[:TOP_K]
-        top_idx = idx[q_seg, :len(top_score)]
-        active_rank = []
-        # connect active path
-        for pi in range(active_path.qsize()):
-            p = active_path.get()
-            added = False
-            prev_q = p[-1][0]
-            prev_db = p[-1][1]
-            if q_seg <= prev_q + TEMP_WND:
-                for rank, ti in enumerate(top_idx):
-                    if ti > prev_db and ti <= prev_db + TEMP_WND:
-                        np = p.copy()
-                        np.append((q_seg, ti))
-                        np[0] += top_score[rank]
-                        active_path.put(np)
-                        active_rank.append(rank)
-                        added = True
-                if not added:
-                    active_path.put(p)
+def matching_gt(detection, gt):
+    hit = 0
+    iou = np.zeros((len(gt), len(detection)))
+    for gi, g in enumerate(gt):
+        for di, d in enumerate(detection):
+            iou[gi][di] = (g[0].IOU(d[0]) + g[1].IOU(d[1])) * ((g[0].IOU(d[0]) * g[1].IOU(d[1])) > 0)
+            # iou[gi][di] = (g[1].IOU(d[1])) * ((g[0].IOU(d[0]) * g[1].IOU(d[1])) > 0)
+            # iou[gi][di] = (g[0].IOU(d[0])) * ((g[0].IOU(d[0]) * g[1].IOU(d[1])) > 0)
+
+    while True:
+        ind = np.unravel_index(np.argmax(iou, axis=None), iou.shape)
+        if iou[ind] == 0: break
+        # iou[ind[0],ind[1]] = 0
+        iou[ind[0], :] = 0
+        iou[:, ind[1]] = 0
+        hit += 1
+        # print(gt[ind[0]],detection[ind[1]])
+
+    return hit
+
+
+def matching(detected, ground):
+    tp = []
+    fn = []
+    fp = []
+    if not len(detected):
+        fn = ground
+    elif not len(ground):
+        fp = detected
+    else:
+        hit_dt_idx = []
+        for ig, gt in enumerate(ground):
+            iou = np.zeros(len(detected))
+            for id, dt in enumerate(detected):
+                iou[id] = gt[1].IOU(dt[1])
+            iou[hit_dt_idx] = 0
+            if np.count_nonzero(iou) == 0:
+                fn.append(gt)
             else:
-                path.append(p)
-        [active_path.put([top_score[rank], (q_seg, ti)]) for rank, ti in enumerate(top_idx) if not rank in active_rank]
-        # print(active_path.queue,path)
+                md = np.argmax(iou)
+                tp.append((gt, detected[md]))
+                hit_dt_idx.append(md)
+        fp = [detected[i] for i in range(len(detected)) if i not in hit_dt_idx]
 
-    path += list(active_path.queue)
-    path = list(filter(lambda x: len(x) >= MIN_PATH + 1, path))
-    path.sort(key=lambda x: x[0], reverse=True)
-
-    # involve
-    for n, p in enumerate(path):
-        query = (p[1][0], p[-1][0])
-        ref = (p[1][1], p[-1][1])
-        for m, pp in enumerate(path[:n]):
-            q = (pp[1][0], pp[-1][0])
-            r = (pp[1][1], pp[-1][1])
-            if q[0]<=query[0] and query[1]<=q[1] and r[0]<=ref[0] and ref[1]<=r[1]:
-                p[0]=-1
-                break
-    path = list(filter(lambda x: x[0]!=-1, path))
-    return path
+    return tp, fp, fn
 
 
 if __name__ == '__main__':

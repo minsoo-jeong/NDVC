@@ -10,6 +10,7 @@ class VCDB:
         self.root = root
         self.core_vlist, self.title, self.qids = self.__read_core_annotation()
         self.gt, self.reference_video = self.__read_core_GT()
+        self.gt_video_list = self.make_GT_list()
 
     def __read_core_annotation(self):
         core_annotation = os.path.join(self.root, 'core_annotation.txt')
@@ -30,7 +31,7 @@ class VCDB:
                 idx, vid, qid = list(map(int, [idx, vid, qid]))
                 qids.add(qid)
                 info = {"index": idx, "VideoID": vid, "QueryID": qid, "VideoName": videoename, 'frames': nframes,
-                        "Duration": duration, 'FPS': fps, "VideoPath": videopath}
+                        "Duration": float(duration), 'FPS': fps, "VideoPath": videopath}
                 corelist.append(info)
         qids = list(qids)
         qids.sort(key=int)
@@ -155,16 +156,53 @@ class VCDB:
         l = [v for v in self.core_vlist if v['VideoID'] in vid]
         return l
 
+    def time_to_idx(self, gt):
+        ref_vid = gt['ref_vid']
+        q_vid = gt['vid']
+        q, ref = self.get_VideoList(vid=[q_vid, ref_vid])
+        q_d = q['Duration']
+        ref_d = ref['Duration']
+
+    def make_GT_list(self):
+        gt_videos = []
+        for gt in self.gt:
+            A = {'vid': gt['A'], 'name': gt['A_VideoName'], 'start': self.__time2sec(gt['A_start']),
+                 'end': self.__time2sec(gt['A_end'])}
+            B = {'vid': gt['B'], 'name': gt['B_VideoName'], 'start': self.__time2sec(gt['B_start']),
+                 'end': self.__time2sec(gt['B_end'])}
+            if A not in gt_videos:
+                gt_videos.append(A)
+            if B not in gt_videos:
+                gt_videos.append(B)
+        return gt_videos
+
+    def get_GT_list(self, vid=[]):
+        vid = self.__validate_vid(vid)
+        l = [v for v in self.gt_video_list if v['vid'] in vid]
+        return l
+
 
 if __name__ == '__main__':
     db = VCDB()
     # print(db.core_vlist)
-    # print(db.gt)
+    l = db.get_GT_list(vid=1)
+    print(l)
+    b=db.get_GT(vid=1)
+    print(b)
+    exit()
+    print(db.title)
+    l = db.get_GT(vid=5)
+    for i in l:
+        print(i)
+
+    db.time_to_idx({'vid': 3, 'start': 5, 'end': 12, 'ref_vid': 1, 'ref_start': 0, 'ref_end': 7})
+    exit()
 
     print(db.core_vlist[220:225])
     l = db.get_reference_video_index()
     print(len(l))
     l = db.get_GT()
+    print(len(l))
     print(l[:5])
     print(db.get_VideoList(vid=[3]))
     # print(l)
