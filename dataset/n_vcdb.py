@@ -26,8 +26,9 @@ class VCDB(object):
     def __init__(self, root='/DB/VCDB', fps=1):
         self.root = root
         self.feature_root = os.path.join(root, 'features', 'fps_1_resnet50_rmac')
-
+        print('vcdb_video')
         self.core_videos_db = VCDB_CORE_VIDEOS(video_root=os.path.join(root, 'core_dataset'), fps=fps)
+        print('vcdb_video')
         self.video_list = self.core_videos_db.video_list
         self.frame_cnt = self.core_videos_db.frames_cnt
 
@@ -101,7 +102,7 @@ class VCDB(object):
         return l
 
     def __get_entire_feature(self, video):
-        path = os.path.join(self.feature_root, video['class'], video['name'].split('.')[0] + '.pt')
+        path = os.path.join(self.feature_root, video['title'], video['name'].split('.')[0] + '.pt')
         f = torch.load(path)
         return f
 
@@ -118,9 +119,7 @@ class VCDB(object):
 
         return f, f_len
 
-    # only videos and frames
-
-
+# only videos and frames
 class VCDB_CORE_VIDEOS(Dataset):
     def __init__(self, video_root='/DB/VCDB/core_dataset', fps=1, extensions=['mp4', 'flv']):
         self.video_root = video_root
@@ -128,11 +127,13 @@ class VCDB_CORE_VIDEOS(Dataset):
 
         self.videos = make_dataset(self.video_root, self.class_to_idx, extensions)
         self.video_list, self.meta = self.__read_video_meta()
+        print('sampling')
         self.frames, self.frames_cnt = self.__sampling_frames(fps=fps)
 
+        print('sampling')
     def __getitem__(self, item):
         ret = self.video_list[item]
-        return (ret['class'], ret['name'], ret['fps'], ret['nframes'], ret['duration'])
+        return (ret['title'], ret['name'], ret['fps'], ret['nframes'], ret['duration'])
 
     def __len__(self):
         return len(self.videos)
@@ -172,9 +173,9 @@ class VCDB_CORE_VIDEOS(Dataset):
                 nf = len(os.listdir(os.path.join('/DB/VCDB/frames/', cls, name.split('.')[0])))  # int(nf)
                 # meta.append((fps, nf, dur))
                 meta.append((fps, dur))
-                video_list.append({'class': cls, 'name': name, 'fps': fps, 'nframes': nf, 'duration': dur})
+                video_list.append({'title': cls, 'name': name, 'fps': fps, 'nframes': nf, 'duration': dur})
 
-        video_list.sort(key=lambda x: (x['class'], x['name']))
+        video_list.sort(key=lambda x: (x['title'], x['name']))
 
         return video_list, meta
 

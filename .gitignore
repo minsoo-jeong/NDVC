@@ -2,3 +2,4 @@ experiment/
 .idea/
 *.pyc
 videoalignment/
+siamese-triplet/

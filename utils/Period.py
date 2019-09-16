@@ -59,6 +59,15 @@ class Period(object):
             raise ValueError('p is not Period object')
         return (self.start <= p.start) and (p.end <= self.end)
 
+    def __sub__(self, p):
+        if not isinstance(p, Period):
+            raise ValueError('p is not Period object')
+
+        if self.is_overlap():
+            max_start = max(self.start, p.start)
+            min_end = min(self.end, p.end)
+            intersect= Period(max_start, min_end)
+
 
 if __name__ == '__main__':
     l = [[1], [2], [3], [4], [5]]

@@ -11,6 +11,22 @@ from queue import Queue
 import copy
 import sys
 
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
 
 def format_bytes(size):
     # 2**10 = 1024
@@ -170,6 +186,13 @@ def matching_gt(detection, gt):
     return hit
 
 
+def calc_precision_recall_f1(tp, fp, fn, eps=1e-6):
+    prec = tp / (tp + fp + eps)
+    rec = tp / (tp + fn + eps)
+    f1 = (2 * prec * rec) / (prec + rec + 1e-6)
+    return prec, rec, f1
+
+
 def matching(detected, ground):
     tp = []
     fn = []
@@ -183,7 +206,7 @@ def matching(detected, ground):
         for ig, gt in enumerate(ground):
             iou = np.zeros(len(detected))
             for id, dt in enumerate(detected):
-                iou[id] = gt[1].IOU(dt[1])
+                iou[id] = gt['ref'].IOU(dt['ref'])
             iou[hit_dt_idx] = 0
             if np.count_nonzero(iou) == 0:
                 fn.append(gt)
@@ -193,7 +216,7 @@ def matching(detected, ground):
                 hit_dt_idx.append(md)
         fp = [detected[i] for i in range(len(detected)) if i not in hit_dt_idx]
 
-    return tp, fp, fn
+    return tp, len(tp), fp, len(fp), fn, len(fn)
 
 
 if __name__ == '__main__':

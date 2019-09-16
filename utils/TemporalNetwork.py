@@ -16,28 +16,35 @@ class TN(object):
         self.MIN_PATH = MIN_PATH
         self.MIN_MATCH = MIN_MATCH
 
+        self.query_length=score.shape[0]
+
         self.topk_score = score
         self.topk_idx = idx
+        self.delimiter_idx = delimiter_idx
 
         if not TOP_K < 1:
             self.topk_score = self.topk_score[:, :self.TOP_K]
             self.topk_idx = self.topk_idx[:, :self.TOP_K]
 
+        self.topk_frame_idx =[]
         self.k = [len(s[s > SCORE_THR]) for n, s in enumerate(self.topk_score)]
-        self.topk_score = [s[:self.k[n]] for n, s in enumerate(self.topk_score)]
-        self.topk_idx = [s[:self.k[n]] for n, s in enumerate(self.topk_idx)]
+        for n, k in enumerate(self.k):
+            self.topk_score[n, k:] = -1
+            self.topk_idx[n, k:] = -1
+            self.topk_frame_idx.append(list(map(lambda x: self.__idx_to_frame_idx_per_video(x),self.topk_idx[n,:k])))
 
-        self.topk_frame_idx = []
-        self.delimiter_idx = delimiter_idx
-        self.table = np.ones((score.shape[0], self.TOP_K), dtype=np.int) * -1
-        self.maximum_ref_table = np.ones((score.shape[0], self.TOP_K, 5), dtype=np.int) * -1
-        self.maximum_score_table = np.zeros((score.shape[0], self.TOP_K), dtype=np.float)
-
+        # self.topk_score = [s[:self.k[n]] for n, s in enumerate(self.topk_score)]
+        # self.topk_idx = [s[:self.k[n]] for n, s in enumerate(self.topk_idx)]
+        '''
         for n, i in enumerate(self.topk_idx):
             self.topk_frame_idx.append(
-                list(map(lambda x: self.__idx_to_frame_idx_per_video(x), i[:len(self.topk_score[n])])))
+                list(map(lambda x: self.__idx_to_frame_idx_per_video(x), i[:self.k[n]])))
+        '''
 
-        self.src = Queue()
+
+        self.maximum_ref_table = np.ones((self.query_length, self.TOP_K, 5), dtype=np.int) * -1
+        self.maximum_score_table = np.zeros((self.query_length, self.TOP_K), dtype=np.float)
+
         self.sink = []
 
         # self.__redundant_path()
@@ -48,12 +55,17 @@ class TN(object):
                 (next_q, next_d, max_q, max_d, max_match), score = self.__maximum_ref_path(t, rank)
                 # print(self.topk_idx[t][rank],max_d)
 
-                if max_d - self.topk_idx[t][rank] >= self.MIN_PATH and self.MIN_MATCH < max_match:
-                    detect = (Period(t, max_q), Period(self.topk_idx[t][rank], max_d), score)
+                if max_d - self.topk_idx[t][rank] >= self.MIN_PATH and max_match > self.MIN_MATCH:
+                    detect = {'query': Period(t, max_q),
+                              'ref': Period(self.topk_idx[t][rank], max_d),
+                              'score': score}
                     sinkable = True
+
                     for n, s in enumerate(self.sink):
-                        if detect[0].is_overlap(s[0]) and detect[1].is_overlap(s[1]):
-                            self.sink[n] = (detect[0].union(s[0]), detect[1].union(s[1]), max(s[2], detect[2]))
+                        if detect['query'].is_overlap(s['query']) and detect['ref'].is_overlap(s['ref']):
+                            self.sink[n] = {'query': detect['query'].union(s['query']),
+                                            'ref': detect['ref'].union(s['ref']),
+                                            'score': max(s['score'], detect['score'])}
                             sinkable = False
                             break
 
@@ -67,7 +79,7 @@ class TN(object):
 
     def __maximum_ref_path(self, t, rank):
         if self.maximum_ref_table[t][rank][0] == -1:
-            neighbor = self.__get_neighbor3(t, rank)
+            neighbor = self.__get_neighbor(t, rank)
             # neighbor = self.__get_neighbor2(t, rank)
             max_d = []
             for (n_t, n_rank, n_idx) in neighbor:
@@ -75,10 +87,10 @@ class TN(object):
                 max_d.append([n_t, n_rank, q, d, c + 1, s])
             if not len(neighbor):
                 self.maximum_ref_table[t][rank] = [0, 0, t, self.topk_idx[t][rank], 1]
-                #self.maximum_ref_table[t][rank] = [0, 0, t, self.topk_frame_idx[t][rank][1], 1]
                 self.maximum_score_table[t][rank] = self.topk_score[t][rank]
+                # self.maximum_ref_table[t][rank] = [0, 0, t, self.topk_frame_idx[t][rank][1], 1]
             else:
-                prev_max = max(max_d, key=lambda x: x[4])
+                prev_max = max(max_d, key=lambda x: x[5])
                 self.maximum_ref_table[t][rank] = prev_max[:5]
                 self.maximum_score_table[t][rank] = prev_max[5] + self.topk_score[t][rank]
         # print(t,rank,self.max_link[t][rank])
@@ -123,7 +135,6 @@ class TN(object):
         for time in range(min(t + self.TEMP_WND, len(self.topk_frame_idx) - 1), t, -1):
             m_pos = -1 if not len(l_pos) else max(l_pos)
             for r, (vidx, fidx) in enumerate(self.topk_frame_idx[time]):
-
                 if (vidx == vid) and (last_ref_fidx < fidx <= last_ref_fidx + self.TEMP_WND):
                     if m_pos != -1:
                         if fidx > m_pos:
