@@ -45,7 +45,9 @@ class VCDB(object):
         print('\rParse annotation ... ok')
 
         # split train-valid
-        self.video_list_train = self.pairs_train = self.video_list_val = self.pairs_val = self.query_list_train = self.query_list_val = None
+        self.video_list_train = self.video_list_val = self.video_list
+        self.pairs_train = self.pairs_val = self.pairs
+        self.query_list_train = self.query_list_val = self.query_list
         if self.n_folds > 1:
             print('Split annotation ... ', end='')
             self.video_list_train, self.pairs_train, self.video_list_val, self.pairs_val, self.query_list_train, self.query_list_val = self.split_train_val()
@@ -217,7 +219,7 @@ class VCDB(object):
             ret, out, err = execute_ffmpeg(args)
             print(i, ret, v['title'], v['name'])
 
-    def extract_cnn_fingerprint(self, videos,target='/DB/VCDB/features/fps_1_alexnet'):
+    def extract_cnn_fingerprint(self, videos, target='/DB/VCDB/features/fps_1_alexnet'):
         # model=Resnet50_RMAC()
         # model = resnet50(pretrained=True)
         # model = torch.nn.Sequential(*list(model.children())[:-1])
@@ -255,6 +257,7 @@ class VCDB(object):
                 # video_feature = video_feature.cpu()
 
                 torch.save(frame_feature, dst)
+
 
 class OnlineTripletFingerprintPairDataset(Dataset):
     def __init__(self, pairs, fingerprint_root):
@@ -297,23 +300,33 @@ class OnlineTripletFingerprintPairDataset(Dataset):
         return f
 
 
+class FingerPrintDataset(Dataset):
+    def __init__(self, videos, fp_root, query=False):
+        self.videos = videos
+        self.fingerprint_root = fp_root
+        self.query = query
+
+    def __len__(self):
+        return len(self.videos)
+
+    def __getitem__(self, index):
+        v = self.videos[index]
+        f = self.get_fingerprint(v, split=True) if self.query else self.get_fingerprint(v, split=False)
+
+        return f, v
+
+    def get_fingerprint(self, video, split=False):
+        path = os.path.join(self.fingerprint_root, video['title'], video['name'].split('.')[0] + '.pt')
+        f = torch.load(path)
+        if split:
+            f = f[video['start_idx']:video['end_idx'] + 1]
+        return f
+
+
 if __name__ == '__main__':
 
-    db = VCDB(n_fold=1, fold_idx=0)
-    td = OnlineTripletFingerprintPairDataset(db.pairs, db.fingerprint_root)
-    dl = DataLoader(td, batch_size=64, shuffle=True, num_workers=4)
-    print(db.query_list[0])
-    # print(db.query_list_train[0])
-    # print(db.query_list_val[0])
+    db = VCDB(n_fold=3, fold_idx=2)
+    print(len(db.query_list_train))
+    print(len(db.query_list_val))
+    print(len(db.query_list))
 
-    print(db.video_list[0])
-    # print(db.video_list_train[0])
-    # print(db.video_list_val[0])
-    exit()
-    for i in range(10):
-        for (fp0, v0), (fp1, v1), cls in dl:
-            f = torch.cat([fp0, fp1])
-            c = torch.cat([cls, cls])
-            print(f.shape)
-
-        print('====================================')

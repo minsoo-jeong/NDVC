@@ -1,22 +1,24 @@
 import os
 import numpy as np
 import torch
-from sklearn.metrics import *
+import logging
+import logging.config
+import logging.handlers
+import json
+from datetime import datetime
 
-a= np.arange(0,10)
-print(a)
-exit()
-a=torch.tensor(np.random.rand(15).reshape(5,3))
+time=datetime.now().strftime("%Y%m%d")
 
-start=0
-end=5
-f=a[start:end+1,:]
-f2=torch.cat([a[:start,:],a[end+1:,:]])
-print(a)
-print(f)
-print(f2)
+config=json.load(open('log/logging.conf'))
+config['handlers']['file']['filename']='log/{}.log'.format(time)
+logging.config.dictConfig(config)
+console_logger = logging.getLogger("console-log")
+file_logger = logging.getLogger("file-log")
+#flogger.addHandler(logging.handlers.RotatingFileHandler(filename='log/test.log', maxBytes=1,backupCount=100))
 
-
+console_logger.info("test msg")
+file_logger.info("first")
+file_logger.info("second")
 
 exit()
 

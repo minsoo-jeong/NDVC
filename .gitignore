@@ -3,3 +3,5 @@ experiment/
 *.pyc
 videoalignment/
 siamese-triplet/
+log/
+ckpts/

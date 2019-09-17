@@ -58,11 +58,9 @@ def evaluate(db, SCORE_THR, TOP_K, TEMP_WND, MIN_PATH, MIN_MATCH, phase):
     query_names = list(set([v['name'] for v in query_videos]))
 
     query_features = []
-    query_features_origin_length = []
     for n, qv in enumerate(query_videos):
         f = db.get_fingerprint(qv, split=True)
         query_features.append(f)
-        query_features_origin_length.append(qv['fingerprint'])
 
     ref_videos = db.video_list_val
     ref_features = []
@@ -83,7 +81,7 @@ def evaluate(db, SCORE_THR, TOP_K, TEMP_WND, MIN_PATH, MIN_MATCH, phase):
     delimiter_idx = np.array(delimiter_idx)
 
     print('',end='')
-    for q_idx, (qv, q, ql) in enumerate(zip(query_videos, query_features, query_features_origin_length)):
+    for q_idx, (qv, q) in enumerate(zip(query_videos, query_features)):
         if q_idx % 100 == 0:
             gc.collect()
 

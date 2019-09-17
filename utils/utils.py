@@ -10,6 +10,9 @@ import cv2
 from queue import Queue
 import copy
 import sys
+import json
+import logging.config
+from datetime import datetime
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -27,6 +30,17 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+
+
+
+def init_logger(desc='default'):
+    time = datetime.now().strftime("%Y%m%d")
+    config=json.load(open('log/logging.conf'))
+    if not os.path.exists('log/{}'.format(time)):
+        os.makedirs('log/{}'.format(time))
+    config['handlers']['file']['filename']='log/{}/{}.log'.format(time,desc)
+    logging.config.dictConfig(config)
+
 
 def format_bytes(size):
     # 2**10 = 1024
