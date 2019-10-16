@@ -16,7 +16,7 @@ class TN(object):
         self.MIN_PATH = MIN_PATH
         self.MIN_MATCH = MIN_MATCH
 
-        self.query_length=score.shape[0]
+        self.query_length = score.shape[0]
 
         self.topk_score = score
         self.topk_idx = idx
@@ -26,12 +26,12 @@ class TN(object):
             self.topk_score = self.topk_score[:, :self.TOP_K]
             self.topk_idx = self.topk_idx[:, :self.TOP_K]
 
-        self.topk_frame_idx =[]
+        self.topk_frame_idx = []
         self.k = [len(s[s > SCORE_THR]) for n, s in enumerate(self.topk_score)]
         for n, k in enumerate(self.k):
             self.topk_score[n, k:] = -1
             self.topk_idx[n, k:] = -1
-            self.topk_frame_idx.append(list(map(lambda x: self.__idx_to_frame_idx_per_video(x),self.topk_idx[n,:k])))
+            self.topk_frame_idx.append(list(map(lambda x: self.__idx_to_frame_idx_per_video(x), self.topk_idx[n, :k])))
 
         # self.topk_score = [s[:self.k[n]] for n, s in enumerate(self.topk_score)]
         # self.topk_idx = [s[:self.k[n]] for n, s in enumerate(self.topk_idx)]
@@ -40,7 +40,6 @@ class TN(object):
             self.topk_frame_idx.append(
                 list(map(lambda x: self.__idx_to_frame_idx_per_video(x), i[:self.k[n]])))
         '''
-
 
         self.maximum_ref_table = np.ones((self.query_length, self.TOP_K, 5), dtype=np.int) * -1
         self.maximum_score_table = np.zeros((self.query_length, self.TOP_K), dtype=np.float)
@@ -56,16 +55,22 @@ class TN(object):
                 # print(self.topk_idx[t][rank],max_d)
 
                 if max_d - self.topk_idx[t][rank] >= self.MIN_PATH and max_match > self.MIN_MATCH:
+
                     detect = {'query': Period(t, max_q),
                               'ref': Period(self.topk_idx[t][rank], max_d),
+                              'ref_vid_idx':self.topk_frame_idx[t][rank][0],
                               'score': score}
                     sinkable = True
 
                     for n, s in enumerate(self.sink):
-                        if detect['query'].is_overlap(s['query']) and detect['ref'].is_overlap(s['ref']):
+                        if detect['ref_vid_idx'] == s['ref_vid_idx'] and detect['query'].is_overlap(s['query']) and \
+                                detect['ref'].is_overlap(s['ref']):
+                            '''
                             self.sink[n] = {'query': detect['query'].union(s['query']),
                                             'ref': detect['ref'].union(s['ref']),
                                             'score': max(s['score'], detect['score'])}
+                            '''
+                            self.sink[n] = detect if detect['score'] > s['score'] else s
                             sinkable = False
                             break
 
@@ -75,6 +80,7 @@ class TN(object):
         # self.sink.sort(key=lambda x: (x[0].start, x[1].start))
         # print(self.sink)
         # print(len(self.sink),self.sink)
+        self.sink.sort(key=lambda x:x['score'],reverse=True)
         return self.sink
 
     def __maximum_ref_path(self, t, rank):

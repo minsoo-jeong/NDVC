@@ -12,10 +12,12 @@ import copy
 import sys
 import json
 import logging.config
-from datetime import datetime
+from datetime import datetime, timedelta
+
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
+
     def __init__(self):
         self.reset()
 
@@ -31,15 +33,21 @@ class AverageMeter(object):
         self.count += n
         self.avg = self.sum / self.count
 
+def kst(*args):
+    return (datetime.now() + timedelta(hours=9)).timetuple()
 
 
 def init_logger(desc='default'):
+    def kst(*args):
+        return (datetime.now() + timedelta(hours=9)).timetuple()
+
     time = datetime.now().strftime("%Y%m%d")
-    config=json.load(open('log/logging.conf'))
+    config = json.load(open('log/logging.conf'))
     if not os.path.exists('log/{}'.format(time)):
         os.makedirs('log/{}'.format(time))
-    config['handlers']['file']['filename']='log/{}/{}.log'.format(time,desc)
+    config['handlers']['file']['filename'] = 'log/{}/{}.log'.format(time, desc)
     logging.config.dictConfig(config)
+    logging.Formatter.converter = kst
 
 
 def format_bytes(size):
@@ -205,6 +213,19 @@ def calc_precision_recall_f1(tp, fp, fn, eps=1e-6):
     rec = tp / (tp + fn + eps)
     f1 = (2 * prec * rec) / (prec + rec + 1e-6)
     return prec, rec, f1
+
+def matching_with_gt(detect,gt_targets):
+    name=detect['ref_vid']
+    start=detect['ref'].start
+    end=detect['ref'].end
+    flag=False
+    hit=None
+    for i,gt in enumerate(gt_targets):
+        if name == gt['name'] and not (gt['end'] < start or end < gt['start']):
+            hit=gt_targets.pop(i)
+            flag=True
+            break
+    return flag, hit
 
 
 def matching(detected, ground):

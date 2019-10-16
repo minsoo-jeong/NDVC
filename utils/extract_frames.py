@@ -6,6 +6,7 @@ from dataset.vcdb import VCDB
 
 def execute_ffmpeg(argv):
     cmd = 'ffmpeg {}'.format(argv)
+    print(cmd)
     p = subprocess.Popen(args=cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     out, err = p.communicate()
     return p.returncode, out.decode('utf8'), err.decode('utf8')

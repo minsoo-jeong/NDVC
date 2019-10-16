@@ -16,6 +16,10 @@ import logging
 import gc
 from utils.TemporalNetwork import TN
 
+def get_time():
+    return (datetime.now() + timedelta(hours=9)).strftime("%Y-%m-%d %H:%M:%S")
+
+
 
 def train(model, criterion, optim, loader, epoch, verbose=True):
     losses = AverageMeter()
@@ -36,11 +40,11 @@ def train(model, criterion, optim, loader, epoch, verbose=True):
         loss.backward()
         optim.step()
         out_str = '[Train - epoch: {}, iter: {}/{}] loss: {}({}) triplet: {}({})' \
-            .format(epoch, iter, max_iter, round(losses.val, 4), round(losses.avg, 4),
+            .format(epoch, iter+1, max_iter, round(losses.val, 4), round(losses.avg, 4),
                     triplets.val, round(triplets.avg))
         f_log.info(out_str)
         if iter % 10 == 0:
-            print('\r' + out_str, end='')
+            print('\r[{} {}]'.format(get_time(),os.path.basename(__file__)) + out_str, end='')
     print("")
     return losses, triplets
 
@@ -63,11 +67,11 @@ def validate(model, criterion, loader, epoch, verbose=True):
             triplets.update(n_triplet)
 
             out_str = '[Valid - epoch: {}, iter: {}/{}] loss: {}({}) triplet: {}({})' \
-                .format(epoch, iter, max_iter, round(losses.val, 4), round(losses.avg, 4),
+                .format(epoch, iter+1, max_iter, round(losses.val, 4), round(losses.avg, 4),
                         triplets.val, round(triplets.avg))
             f_log.info(out_str)
             if iter % 10 == 0:
-                print('\r' + out_str, end='')
+                print('\r[{} {}]'.format(get_time(), os.path.basename(__file__)) + out_str, end='')
     print("")
     # extract frames
     # extract fingerprint
@@ -75,12 +79,12 @@ def validate(model, criterion, loader, epoch, verbose=True):
     return losses, triplets
 
 
-def eval(model, db):
+def eval(model, db,epoch,extract=True):
     f_log = logging.getLogger("file-log")
-    ref_video_dataset = FingerPrintDataset(db.video_list_val, db.fingerprint_root, query=False)
+    ref_video_dataset = FingerPrintDataset(db.video_list, db.fingerprint_root, query=False)
     query_dataset = FingerPrintDataset(db.query_list_val, db.fingerprint_root, query=True)
     SCORE_THR = 0.9
-    TEMP_WND = 10
+    TEMP_WND = 1
     TOP_K = 50
     MIN_PATH = 3
     MIN_MATCH = 2
@@ -92,16 +96,25 @@ def eval(model, db):
     delimiter_idx = [0]
 
     q_len = len(query_dataset)
+    if extract:
+        with torch.no_grad():
+            for iter, (feature, v) in enumerate(query_dataset):
+                out = model(feature.cuda())
+                query_features.append(out.cpu())
+                query_names.append(v['name'])
 
-    with torch.no_grad():
+            for iter, (feature, v) in enumerate(ref_video_dataset):
+                out = model(feature.cuda())
+                ref_features.append(out.cpu())
+                ref_names.append(v['name'])
+                delimiter_idx.append(delimiter_idx[-1] + v['fingerprint'])
+    else:
         for iter, (feature, v) in enumerate(query_dataset):
-            out = model(feature.cuda())
-            query_features.append(out.cpu())
+            query_features.append(feature)
             query_names.append(v['name'])
 
         for iter, (feature, v) in enumerate(ref_video_dataset):
-            out = model(feature.cuda())
-            ref_features.append(out.cpu())
+            ref_features.append(feature)
             ref_names.append(v['name'])
             delimiter_idx.append(delimiter_idx[-1] + v['fingerprint'])
 
@@ -142,11 +155,11 @@ def eval(model, db):
         tot_fn += fn
         tot_prec, tot_rec, tot_f1 = calc_precision_recall_f1(tot_tp, tot_fp, tot_fn)
 
-        out_str = '[{}/{}] prec: {}({})   recall: {}({})   f1: {}({}) / TP: {}({}) FP: {}({}) FN: {}({}) {} {}'.format(
-            q_idx, q_len, round(prec, 4), round(tot_prec, 4), round(rec, 4), round(tot_rec, 4)
+        out_str = '[Eval - epoch: {}, iter: {}/{}] prec: {}({})   recall: {}({})   f1: {}({}) / TP: {}({}) FP: {}({}) FN: {}({}) {} {}'.format(
+            int(epoch),q_idx+1, q_len, round(prec, 4), round(tot_prec, 4), round(rec, 4), round(tot_rec, 4)
             , round(f1, 4), round(tot_f1, 4), tp, tot_tp, fp, tot_fp, fn, tot_fn, qv, q.shape)
         f_log.info(out_str)
-        print('\r' + out_str, end='')
+        print('\r[{} {}]'.format(get_time(), os.path.basename(__file__)) + out_str, end='')
 
     print(
         '\nSCORE THR: {}  TOPK: {} TEMP_WND: {} MIN_PATH: {} MIN_MATCH {}'.format(SCORE_THR, TOP_K, TEMP_WND, MIN_PATH,
@@ -155,7 +168,8 @@ def eval(model, db):
 
 
 if __name__ == '__main__':
-    init_logger('simpleFC')
+    desc='simpleFC'
+    init_logger(desc)
 
     epoch = 50
     n_fold = 5
@@ -163,7 +177,10 @@ if __name__ == '__main__':
     batch_size = 512
     triplet_margin = 0.3
 
-    ckpt = 'ckpts/10.pt'
+    ckpt = None
+    date = (datetime.now()+timedelta(hours=9)).strftime("%Y%m%d")
+    if not os.path.exists('ckpts/{}'.format(date)):
+        os.makedirs('ckpts/{}'.format(date))
 
     db = VCDB(n_fold=n_fold, fold_idx=fold_idx)
     tr_dataset = OnlineTripletFingerprintPairDataset(db.pairs_train, db.fingerprint_root)
@@ -190,17 +207,16 @@ if __name__ == '__main__':
         start_epoch = ckpt['epoch'] + 1
         (prec,rec,f1)=ckpt['perform']
 
-
     if start_epoch == 0:
-        eval(model, db)
+        eval(model, db,False)
     for ep in range(start_epoch, epoch + 1):
         losses_train, triplet_train = train(model, criterion, optimizer, tr_loader, ep)
         losses_val, triplet_val = validate(model, criterion, va_loader, ep)
-        prec, rec, f1 = eval(model, db)
+        prec, rec, f1 = eval(model, db,ep)
 
         torch.save({'epoch': ep,
                     'state_dict': model.module.state_dict(),
                     'train': (losses_train.avg, triplet_train.avg),
                     'valid': (losses_val.avg, triplet_val.avg),
                     'perform': (prec, rec, f1)
-                    }, 'ckpts/{}.pt'.format(ep))
+                    }, 'ckpts/{}/{}-ep{}.pt'.format(date,desc,ep))

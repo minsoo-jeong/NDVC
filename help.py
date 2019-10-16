@@ -5,21 +5,44 @@ import logging
 import logging.config
 import logging.handlers
 import json
-from datetime import datetime
+from datetime import datetime,timedelta
 
-time=datetime.now().strftime("%Y%m%d")
+from collections import deque
 
-config=json.load(open('log/logging.conf'))
-config['handlers']['file']['filename']='log/{}.log'.format(time)
-logging.config.dictConfig(config)
-console_logger = logging.getLogger("console-log")
-file_logger = logging.getLogger("file-log")
-#flogger.addHandler(logging.handlers.RotatingFileHandler(filename='log/test.log', maxBytes=1,backupCount=100))
+def nn(l):
+    for i, gt in enumerate(l):
+       if gt==4:
+            l.pop(i)
+            break
+    return l
 
-console_logger.info("test msg")
-file_logger.info("first")
-file_logger.info("second")
+a=[1,2,3,4,5,6]
+print(nn(a))
+print(a)
+exit()
 
+a='11112'
+print(a[::-1],set(a))
+
+
+
+exit()
+
+s="pPoooyY"
+s=str.lower(s)
+print(s.count('p'),s.count('y'))
+exit()
+x = torch.randn(3, 4)
+print(x)
+a=torch.index_select(x,0,torch.tensor([1,2]))
+print(a)
+
+exit()
+
+
+t=(datetime.now()+timedelta(hours=9)).strftime("%Y-%m-%d %H:%M:%s")
+print('[{} {}]'.format(t,os.path.basename(__file__)))
+'[2019-09-17 05:25:17 INFO train.py]'
 exit()
 
 a = [1, 2, 3, 4]

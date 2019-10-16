@@ -22,10 +22,10 @@ class SimpleFC(torch.nn.Module):
     def __init__(self,normalize=True):
         super(SimpleFC, self).__init__()
         self.normalize=normalize
-        self.relu = torch.nn.ReLU(inplace=True)
-        self.fc1 = torch.nn.Linear(2048, 1024)
-        self.fc2 = torch.nn.Linear(1024, 512)
-        self.fc3 = torch.nn.Linear(512, 256)
+        self.relu = torch.nn.LeakyReLU(inplace=True)
+        self.fc1 = torch.nn.Linear(2048, 2048)
+        self.fc2 = torch.nn.Linear(2048, 2048)
+        #self.fc3 = torch.nn.Linear(2048, 2048)
         self.norm = L2N()
 
     def forward(self, x):
@@ -33,7 +33,7 @@ class SimpleFC(torch.nn.Module):
         x = self.relu(x)
         x = self.fc2(x)
         x = self.relu(x)
-        x = self.fc3(x)
+#        x = self.fc3(x)
         if self.normalize:
             x=self.norm(x)
 

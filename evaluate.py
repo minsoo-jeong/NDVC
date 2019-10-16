@@ -99,7 +99,7 @@ def evaluate(db, SCORE_THR, TOP_K, TEMP_WND, MIN_PATH, MIN_MATCH, phase):
             p['query'].end += qv['start_idx']
         pair = [{'query': (op[0]['name'], Period(op[0]['start_idx'], op[0]['end_idx'])),
                  'ref': (op[1])}
-                for op in db.get_relative_pair(qv) if
+                for op in db.get_relative_pair2(qv) if
                 op[1]['name'] in query_names and not (
                         qv['end_idx'] < op[0]['start_idx'] or qv['start_idx'] > op[0]['end_idx'])]
 
