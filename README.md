@@ -32,8 +32,6 @@ NDVC
 `-- utils
     |-- Period.py
     |-- TemporalNetwork.py
-    |-- __init__.py
-    |-- __pycache__
     |-- extract_frames.py
     |-- replace_meta_txt.py
     `-- utils.py
