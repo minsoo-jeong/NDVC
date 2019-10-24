@@ -35,7 +35,6 @@ class AverageMeter(object):
 
 
 class MeasureMeter(object):
-    """Computes and stores the average and current value"""
 
     def __init__(self):
         self.reset()
@@ -185,13 +184,12 @@ def cosine_similarity_split2(query, features):
     q_l = query.split(100, dim=0)
     feature_l = features.split(5000, dim=0)
     for q in q_l:
-        cos_l=[]
+        cos_l = []
         for f in feature_l:
             cos = torch.mm(f, q.t()).t()
             cos_l.append(cos)
-        cos_l=torch.cat(cos_l,dim=0)
+        cos_l = torch.cat(cos_l, dim=0)
         score, idx = torch.sort(cos_l, descending=True)
-
 
         pass
 

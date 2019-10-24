@@ -9,6 +9,10 @@ from datetime import datetime,timedelta
 
 from collections import deque
 
+
+l=[1,2,3]
+print(l,l[:0])
+exit()
 def nn(l):
     for i, gt in enumerate(l):
        if gt==4:

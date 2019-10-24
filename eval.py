@@ -82,11 +82,14 @@ def eval(model, ref_videos, query, relative_pair, fps, batch_sz, num_workers):
     ref_videos_names = []
     ref_videos_delimter = [0]
     with torch.no_grad():
+        # empty loader
         listLoader = DataLoader(ListDataset([]), batch_size=batch_sz, shuffle=False, num_workers=num_workers)
         print("Extract Reference Video Fingerprint")
         for video_idx, (frame_list, video) in enumerate(ref_videos):
+            # 비디오의 샘플링된 프레임 --> empty loader
             listLoader.dataset.l = frame_list
             video_fingerprint = []
+            # 프레임을 chunk(Batch)를 CNN
             for chunk_idx, (paths, frames) in enumerate(listLoader):
                 out = model(frames.cuda())
                 video_fingerprint.append(out)
@@ -97,12 +100,14 @@ def eval(model, ref_videos, query, relative_pair, fps, batch_sz, num_workers):
             ref_videos_names.append(video['name'])
             ref_videos_delimter.append(ref_videos_delimter[-1] + video_fingerprint.shape[0])
 
+        # 모든 Ref video에 대한 Fingerprint
         ref_videos_fingerprint = torch.cat(ref_videos_fingerprint)
         ref_videos_delimter = np.array(ref_videos_delimter)
         print("Total Reference Video: {} FingerPrint shape: {}".format(len(ref_videos), ref_videos_fingerprint.shape))
 
-        last_query_video = ''
+
         for query_idx, (frame_list, query_video) in enumerate(query):
+            # 쿼리 별로
             listLoader.dataset.l = frame_list
             query_fingerprint = []
             for chunk_idx, (paths, frames) in enumerate(listLoader):
@@ -112,8 +117,10 @@ def eval(model, ref_videos, query, relative_pair, fps, batch_sz, num_workers):
             print("[{}/{}] Matching Query with Reference Video ... shape: {}, video: {}"
                   .format(query_idx, len(query), query_fingerprint.shape, query_video))
 
+            # Ref FingerPrint와 비교
             score, idx, cos = cosine_similarity_auto(query_fingerprint, ref_videos_fingerprint, cuda=False, numpy=True)
 
+            # Temporal Network
             tn = TN(score, idx, ref_videos_delimter, TOP_K=TOP_K, SCORE_THR=SCORE_THR,
                     TEMP_WND=TEMP_WND, MIN_PATH=MIN_PATH, MIN_MATCH=MIN_MATCH)
             detect = tn.fit()
@@ -133,7 +140,7 @@ def eval(model, ref_videos, query, relative_pair, fps, batch_sz, num_workers):
 
             ground = sorted(ground, key=lambda x: x['ref'].end - x['ref'].start, reverse=True)
 
-            # print(len(detect), len(ground))
+            # Matching with groundTruth
             TP, TP_gt, FP, FN = match(detect, ground)
             measure.update(len(TP), len(FP), len(FN))
             out_str = '\t{}\n'.format(measure.__str__())
@@ -151,7 +158,7 @@ def main():
     parser.add_argument('--nfold', type=int, default=1,
                         help="Number of split for train or valid datasets (default(1) means no split)")
     parser.add_argument('--fold_idx', type=int, default=0,
-                        help='Validation dataset idx, it should be smaller than nsplit (valid_idx < nsplit)')
+                        help='Validation dataset idx, it should be smaller than nfold (valid_idx < nfold)')
     parser.add_argument('--fps', type=int, default=1, help="Sampling FPS")
     parser.add_argument('--batch_size', type=int, default=512, help="Batch size")
     parser.add_argument('--num_workers', type=int, default=4, help="Number of workers")
@@ -171,9 +178,14 @@ def main():
     assert 0 < nfold
     assert 0 <= fold_idx < nfold
 
+    # VCDB 비디오, 프레임 정보, annotations, split train-valid
     vcdb = VCDB_dataset(root=vcdb_root, n_folds=nfold, fold_idx=fold_idx)
-    ref_videos = FrameDataset(vcdb.get_reference_videos(valid=True, train=False), fps=fps, isQuery=False)
-    query = FrameDataset(vcdb.get_query(valid=True, train=False), fps=fps, isQuery=True)
+
+    # ref video 프레임 샘플링(fps)
+    ref_videos = FrameDataset(vcdb.get_reference_videos(valid=True, train=False), fps=fps, isQuery=False, root=vcdb.root)
+
+    # query 프레임 샘플링(fps)
+    query = FrameDataset(vcdb.get_query(valid=True, train=False), fps=fps, isQuery=True,root=vcdb.root)
 
     print(len(vcdb.core_video_val))  # , vcdb.core_video_val)
     print(len(vcdb.query_val))  # , vcdb.query_val)
