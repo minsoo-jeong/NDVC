@@ -27,7 +27,7 @@ class TN(object):
             self.topk_idx = self.topk_idx[:, :self.TOP_K]
 
         self.topk_frame_idx = []
-        self.k = [len(s[s > SCORE_THR]) for n, s in enumerate(self.topk_score)]
+        self.k = [max(1,len(s[s > SCORE_THR])) for n, s in enumerate(self.topk_score)]
         for n, k in enumerate(self.k):
             self.topk_score[n, k:] = -1
             self.topk_idx[n, k:] = -1
@@ -41,8 +41,9 @@ class TN(object):
                 list(map(lambda x: self.__idx_to_frame_idx_per_video(x), i[:self.k[n]])))
         '''
 
-        self.maximum_ref_table = np.ones((self.query_length, self.TOP_K, 5), dtype=np.int) * -1
-        self.maximum_score_table = np.zeros((self.query_length, self.TOP_K), dtype=np.float)
+
+        self.maximum_ref_table = np.ones((self.query_length, max(self.k), 5), dtype=np.int) * -1
+        self.maximum_score_table = np.zeros((self.query_length, max(self.k)), dtype=np.float)
 
         self.sink = []
 

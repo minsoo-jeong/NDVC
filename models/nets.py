@@ -55,6 +55,20 @@ class TripletNet(nn.Module):
         return self.embedding_net(x)
 
 
+class DummyEmb(nn.Module):
+    def __init__(self):
+        super(DummyEmb,self).__init__()
+        self.base = torch.nn.Sequential(*list(models.resnet50(pretrained=True).children())[:-2])
+        self.pool = RMAC()
+        self.norm = L2N()
+
+    def forward(self, x):
+        x = self.base(x)
+        x = self.pool(x)
+        x = self.norm(x)
+        return x
+
+
 if __name__ == '__main__':
     model=TripletNet(SimpleFC(normalize=True))
     print(model)

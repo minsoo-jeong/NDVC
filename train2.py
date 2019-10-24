@@ -88,7 +88,7 @@ def eval(model, db, epoch):
         fps = 10
         ref_videos = VideoFrameDataset(db.core_video_val, fps, 1, query=False)
         query_videos = VideoFrameDataset(db.query_val, fps, 1, query=True)
-        print('Query : {} / Reference Video : {} '.format(len(query_videos),len(ref_videos)))
+        print('Number of Query : {} / Number of Reference Video : {} '.format(len(query_videos),len(ref_videos)))
 
         SCORE_THR = 0.9
         TEMP_WND = 1
@@ -112,7 +112,7 @@ def eval(model, db, epoch):
             # Extract Reference Video's segment features
             for iter, (frames, v, _) in enumerate(ref_videos):
                 vf = []
-                for f, p in DataLoader(ListDataset(frames), batch_size=32, shuffle=False, num_workers=4):
+                for f, p in DataLoader(ListDataset(frames), batch_size=128, shuffle=False, num_workers=4):
                     out = model(f.cuda())
                     vf.append(out)
                 vf = torch.cat(vf).cpu()
@@ -130,7 +130,7 @@ def eval(model, db, epoch):
             for iter, (frames, qv, i) in enumerate(query_videos):
                 if vid != qv['name']:
                     vf = []
-                    for f, p in DataLoader(ListDataset(frames), batch_size=32, shuffle=False, num_workers=4):
+                    for f, p in DataLoader(ListDataset(frames), batch_size=128, shuffle=False, num_workers=4):
                         out = model(f.cuda())
                         vf.append(out)
                     v_feature = torch.cat(vf).cpu()

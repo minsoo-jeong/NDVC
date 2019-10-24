@@ -33,6 +33,65 @@ class AverageMeter(object):
         self.count += n
         self.avg = self.sum / self.count
 
+
+class MeasureMeter(object):
+    """Computes and stores the average and current value"""
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.tp = 0
+        self.fp = 0
+        self.fn = 0
+        self.prec = 0
+        self.rec = 0
+        self.f1 = 0
+        self.tot_tp = 0
+        self.tot_fp = 0
+        self.tot_fn = 0
+        self.tot_rec = 0
+        self.tot_rec = 0
+        self.tot_f1 = 0
+        self.cnt = 0
+
+    def update(self, tp, fp, fn):
+        self.tp = tp
+        self.fp = fp
+        self.fn = fn
+        self.tot_tp += tp
+        self.tot_fp += fp
+        self.tot_fn += fn
+        self.prec, self.rec, self.f1 = self.calc_f1_score(tp, fp, fn)
+        self.tot_prec, self.tot_rec, self.tot_f1 = self.calc_f1_score(self.tot_tp, self.tot_fp, self.tot_fn)
+        self.cnt += 1
+
+    def calc_f1_score(self, tp, fp, fn, eps=1e-6):
+        prec = tp / (tp + fp + eps)
+        rec = tp / (tp + fn + eps)
+        f1 = (2 * prec * rec) / (prec + rec + 1e-6)
+        return prec, rec, f1
+
+    def cnt_str(self):
+        return 'TP: {}({}), FP: {}({}), FN: {}({})'.format(self.tp, self.tot_tp, self.fp, self.tot_fp, self.fn,
+                                                           self.tot_fn)
+
+    def precision_str(self):
+        return '{:.4f}({:.4f})'.format(self.prec, self.tot_prec)
+
+    def recall_str(self):
+        return '{:.4f}({:.4f})'.format(self.rec, self.tot_rec)
+
+    def f1_str(self):
+        return '{:.4f}({:.4f})'.format(self.f1, self.tot_f1)
+
+    def performance_str(self):
+        return 'precision: {}, recall: {}, f-score: {}'.format(self.precision_str(), self.recall_str(), self.f1_str())
+
+    def __str__(self):
+        return '{} / {}'.format(self.performance_str(), self.cnt_str())
+
+
 def kst(*args):
     return (datetime.now() + timedelta(hours=9)).timetuple()
 
@@ -63,6 +122,12 @@ def format_bytes(size):
 
 def int_round(f):
     return int(round(f))
+
+
+def cosine_similarity_auto(query, features, cuda=True, numpy=True, query_split_cnt=200):
+    score, idx, cos = cosine_similarity(query, features, cuda=cuda, numpy=numpy) \
+        if query.shape[0] < query_split_cnt else cosine_similarity_split(query, features, cuda=cuda, numpy=numpy)
+    return score, idx, cos
 
 
 # multiple query
@@ -110,6 +175,25 @@ def cosine_similarity_split(query, features, cuda=True, numpy=True):
     score, idx, cos = map(toNumpy, [score, idx, cos])
 
     return score, idx, cos
+
+
+def cosine_similarity_split2(query, features):
+    # nomalize
+    query = F.normalize(query, 2, 1)
+    features = F.normalize(features, 2, 1)
+
+    q_l = query.split(100, dim=0)
+    feature_l = features.split(5000, dim=0)
+    for q in q_l:
+        cos_l=[]
+        for f in feature_l:
+            cos = torch.mm(f, q.t()).t()
+            cos_l.append(cos)
+        cos_l=torch.cat(cos_l,dim=0)
+        score, idx = torch.sort(cos_l, descending=True)
+
+
+        pass
 
 
 def evaluate_mAP(indice, gt, k=[1, 500, 1000], pr_curve=False):
@@ -214,18 +298,40 @@ def calc_precision_recall_f1(tp, fp, fn, eps=1e-6):
     f1 = (2 * prec * rec) / (prec + rec + 1e-6)
     return prec, rec, f1
 
-def matching_with_gt(detect,gt_targets):
-    name=detect['ref_vid']
-    start=detect['ref'].start
-    end=detect['ref'].end
-    flag=False
-    hit=None
-    for i,gt in enumerate(gt_targets):
+
+def matching_with_gt(detect, ground):
+    name = detect['ref_vid']
+    start = detect['ref'].start
+    end = detect['ref'].end
+    flag = False
+    hit = None
+    for i, gt in enumerate(ground):
         if name == gt['name'] and not (gt['end'] < start or end < gt['start']):
-            hit=gt_targets.pop(i)
-            flag=True
+            hit = ground.pop(i)
+            flag = True
             break
     return flag, hit
+
+
+def match(detect, ground):
+    hit = []
+    hit_gt = []
+    miss_detect = []
+    for ndt, dt in enumerate(detect):
+        flag = False
+        dt_ref_name = dt['ref_name']
+        dt_ref_start = dt['ref'].start
+        dt_ref_end = dt['ref'].end
+        for ngt, gt in enumerate(ground):
+            if dt_ref_name == gt['ref_name'] and not (gt['ref'].end < dt_ref_start or dt_ref_end < gt['ref'].start):
+                hit.append(dt)
+                hit_gt.append(ground.pop(ngt))
+                flag = True
+                break
+        if flag is False:
+            miss_detect.append(dt)
+    not_found = ground
+    return hit, hit_gt, miss_detect, not_found
 
 
 def matching(detected, ground):

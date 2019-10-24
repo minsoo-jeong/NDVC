@@ -63,13 +63,20 @@ class Period(object):
         if not isinstance(p, Period):
             raise ValueError('p is not Period object')
 
-        if self.is_overlap():
+        if self.is_overlap(p):
             max_start = max(self.start, p.start)
             min_end = min(self.end, p.end)
             intersect= Period(max_start, min_end)
 
 
 if __name__ == '__main__':
+    p=Period(0.3,1.5)
+    b=Period(0.3,1.0)
+    print(p,b,p.is_overlap(b))
+
+
+
+    exit()
     l = [[1], [2], [3], [4], [5]]
     for n, i in enumerate(l):
         if i == [2]: l[2] = -1

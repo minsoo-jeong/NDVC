@@ -379,10 +379,13 @@ class VCDB_dataset(object):
     def __init__(self, root='/DB/VCDB/', n_folds=1, fold_idx=0):
         self.root = root
         self.annotation_dir = os.path.join(root, 'annotation')
-        self.core_video_root = os.path.join(root, 'core_dataset')
-        self.core_frame_root = os.path.join(root, 'frames')
+        self.core_video_root = os.path.join(root, 'core_dataset', 'videos')
+        self.core_frame_root = os.path.join(root, 'core_dataset', 'frames')
+        self.core_meta = os.path.join(self.root, 'core_dataset', 'core_meta.txt')
+
         self.bg_video_root = os.path.join(root, 'background_dataset', 'videos')
         self.bg_frames_root = os.path.join(root, 'background_dataset', 'frames')
+        self.bg_meta = os.path.join(self.root, 'background_dataset', 'bg_meta.txt')
 
         self.core_video, self.bg_video = self.__scan_video()
         self.pairs, self.query_list = self.__scan_annotation()
@@ -410,6 +413,7 @@ class VCDB_dataset(object):
 
         def read_video_meta(meta):
             videos = []
+
             with open(meta, 'r') as f:
                 for line in f.readlines():
                     name, cls, fps, dur, nf = line.rstrip().split(',')
@@ -418,14 +422,12 @@ class VCDB_dataset(object):
 
             return videos
 
-        core_meta = os.path.join(self.root, 'core_meta.txt')
-        bg_meta = os.path.join(self.root, 'bg_meta.txt')
-        if not os.path.exists(core_meta):
-            write_video_meta(core_meta, self.core_video_root, self.core_frame_root)
-        core_videos = read_video_meta(core_meta)
-        if not os.path.exists(bg_meta):
-            write_video_meta(bg_meta, self.bg_video_root, self.bg_frames_root)
-        bg_videos = read_video_meta(bg_meta)
+        if not os.path.exists(self.core_meta):
+            write_video_meta(self.core_meta, self.core_video_root, self.core_frame_root)
+        core_videos = read_video_meta(self.core_meta)
+        if not os.path.exists(self.bg_meta):
+            write_video_meta(self.bg_meta, self.bg_video_root, self.bg_frames_root)
+        bg_videos = read_video_meta(self.bg_meta)
 
         return core_videos, bg_videos
 
@@ -491,6 +493,35 @@ class VCDB_dataset(object):
                 l.append((p[0], p[1]))
             elif p[1]['name'] == query['name'] and not (p[1]['end'] < query['start'] or query['end'] < p[1]['start']):
                 l.append((p[1], p[0]))
+        return l
+
+    def get_reference_videos(self, valid=True, train=False, background=False, total=528):
+        assert valid or train or background
+        l = []
+        if valid and train:
+            l = self.core_video
+        elif valid:
+            l = self.core_video_val
+        elif train:
+            l = self.core_video_train
+
+        if background:
+            c = total - len(l)
+            bi = np.random.choice(len(self.bg_video), size=c,replace=False)
+            for i in bi:
+                l.append(self.bg_video[i])
+
+        return l
+
+    def get_query(self, valid=True, train=False):
+        assert valid or train
+        l = []
+        if valid and train:
+            l = self.query_list
+        elif valid:
+            l = self.query_val
+        elif train:
+            l = self.query_train
         return l
 
 
@@ -599,7 +630,7 @@ class OnlineTripletFramePairDataset(Dataset):
             print(video)
 
         c = np.random.choice(frame_idx, size=1)
-        choice=os.path.join(p, l[c[0]])
+        choice = os.path.join(p, l[c[0]])
 
         return choice
 
@@ -644,6 +675,7 @@ eval
 비디오에 대한 frame dir list
 self.samples=비디오 1개에 대한 샘플링된 프레임 list 
 """
+
 
 class VideoFrameDataset(Dataset):
     def __init__(self, videos, fps=10, sec_per_group=1, video_root='/DB/VCDB/core_dataset/',
@@ -691,7 +723,6 @@ class ListDataset(Dataset):
             trn.ToTensor(),
             trn.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
-
     def __getitem__(self, idx):
         path = self.samples[idx]
         frame = self.default_trn(self.loader(path))
@@ -708,7 +739,6 @@ if __name__ == '__main__':
     va_loader = DataLoader(va_dataset, batch_size=64, shuffle=True, num_workers=4)
     for v in va_loader:
         pass
-
 
     vf = VideoFrameDataset(v.core_video_val, 2, 1, query=False)
     print(vf.__getitem__(9))
