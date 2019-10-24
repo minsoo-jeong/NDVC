@@ -18,7 +18,7 @@
 ```
 
 ```
-NVCD
+NDVC
 |-- README.md
 |-- dataset
 |   `-- vcdb3.py 
